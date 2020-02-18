@@ -65,6 +65,59 @@ $ (printf "PING\r\nPING\r\nPING\r\n"; sleep 1) | nc localhost 6379
 
 ![iops](https://redis.io/images/redisdoc/pipeline_iops.png)
 
+### 测试用例
+
+下面我们使用支持管道功能的 Ruby Redis 客户端进行基准测试，来测试管道技术对性能的提升：
+
+```ruby
+require 'rubygems'
+require 'redis'
+
+def bench(descr)
+    start = Time.now
+    yield
+    puts "#{descr} #{Time.now-start} seconds"
+end
+
+def without_pipelining
+    r = Redis.new
+    10000.times {
+        r.ping
+    }
+end
+
+def with_pipelining
+    r = Redis.new
+    r.pipelined {
+        10000.times {
+            r.ping
+        }
+    }
+end
+
+bench("without pipelining") {
+    without_pipelining
+}
+bench("with pipelining") {
+    with_pipelining
+}
+```
+
+在我的 Mac OS X 系统上运行基于 loopback 接口的脚本结果如下，即使 RTT 以足够小也能提升不少性能：
+
+```
+without pipelining 1.185238 seconds
+with pipelining 0.250783 seconds
+```
+
+如你所见，通过管道我们提升了 5 倍的性能。
+
+### 管道 VS 脚本
+
+使用 [Redis 脚本](https://redis.io/commands/eval)（2.6 及以上版本）编程在服务端去处理大量管道操作能够更好提升性能。脚本的最大优势之一是能够同事降低读写数据的延迟，让读取、计算和写入操作变得非常快（由于客户端需要接收到 read 命令的响应后才能调用 write 命令，这种场景下，管道技术则无能为力）。
+
+有时应用程序可能会在管道中使用 [EVAL] 或 [EVALSHA] 命令。这点可能是 Redis 通过 [SCRIPT LOAD] 命令支持该功能的又一力证（它保证了调用 [EVALSHA] 命令不会失败的风险）。
+
 @TODO 
 
 [原文](https://redis.io/topics/pipelining)
