@@ -55,17 +55,11 @@ $ (printf "PING\r\nPING\r\nPING\r\n"; sleep 1) | nc localhost 6379
 - Server: 3
 - Server: 4
 
-IMPORTANT NOTE: While the client sends commands using pipelining, the server will be forced to queue the replies, using memory. So if you need to send a lot of commands with pipelining, it is better to send them as batches having a reasonable number, for instance 10k commands, read the replies, and then send another 10k commands again, and so forth. The speed will be nearly the same, but the additional memory used will be at max the amount needed to queue the replies for these 10k commands.
-
 **重要提示：** 当客户端使用管道发送命令时，服务端在内存中以类似队列形式处理所有命令并响应。所以当你需要使用管道发送大量命令时，最好以合理的命令数量分批次提交，比如先发送一个 10k 的命令，读取响应回复后，再次发送 10k 命令，依次列推。这样他们的速度几乎一样，但是对于 10k 的命令来讲，能够额外用于回复队列的内存会达最大值。
 
 ### 不仅仅是 RTT
 
-Pipelining is not just a way in order to reduce the latency cost due to the round trip time, it actually improves by a huge amount the total operations you can perform per second in a given Redis server. This is the result of the fact that, without using pipelining, serving each command is very cheap from the point of view of accessing the data structures and producing the reply, but it is very costly from the point of view of doing the socket I/O. This involves calling the read() and write() syscall, that means going from user land to kernel land. The context switch is a huge speed penalty.
-
 管道不仅降低了 RTT 延迟响应，还能够提升单个 Redis 服务能够处理的命令数量。这是因为，从数据结构和回复响应的角度讲在不使用管道时，单个命令处理时的资源开销很小，但是对于套接字的 I/O 消耗却非常大。这里涉及到了 read() 和 write() 的系统调用，太意味着从用户态到内核态的转换。上下文切换会导致速度严重下降。
-
-When pipelining is used, many commands are usually read with a single read() system call, and multiple replies are delivered with a single write() system call. Because of this, the number of total queries performed per second initially increases almost linearly with longer pipelines, and eventually reaches 10 times the baseline obtained not using pipelining, as you can see from the following graph:
 
 当使用管道，通常只要单个 read() 系统调用读取多个命令，然后通过一个 write() 系统调用投递回复响应。介于此，每秒执行的请求总数将随着管道命令长度的增加几乎呈线性增长，最终达到不使用管道的基线的10倍，如下图所示:
 
